@@ -1,0 +1,3 @@
+"""
+Mochi Desktop Companion Package
+"""
