@@ -1,0 +1,34 @@
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python Cache & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# User Data, Secrets & Local State
+config.json
+memory.json
+screenshots/*
+!screenshots/.gitkeep
+*.log
+
+# Large Datasets, Model Weights & Media
+training/cache/
+*.pt
+*.bin
+*.safetensors
+*.mp4
+
+# OS & IDE Files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.lnk
+.vscode/
+.idea/
