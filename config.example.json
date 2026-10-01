@@ -1,0 +1,19 @@
+{
+    "assistant_name": "Hitasha",
+    "personality": "jarvis",
+    "voice_enabled": true,
+    "voice_rate": 185,
+    "voice_volume": 1.0,
+    "voice_id": "",
+    "always_on_top": true,
+    "gemini_api_key": "",
+    "sound_effects": true,
+    "window_pos": [
+        1200,
+        350
+    ],
+    "compact_mode": false,
+    "local_llm_model": "hitasha",
+    "local_llm_url": "http://localhost:11434",
+    "response_style": "simple_indian_english"
+}
