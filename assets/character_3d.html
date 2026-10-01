@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Hitasha 3D Character</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    /* Sleek Mini Animation Selector Overlay - hidden by default so only character is seen */
+    #anim-toolbar {
+      display: none;
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 4px;
+      background: rgba(22, 23, 36, 0.75);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      padding: 4px 8px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      z-index: 10;
+      max-width: 96%;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    #anim-toolbar::-webkit-scrollbar {
+      display: none;
+    }
+    .anim-btn {
+      background: rgba(255, 255, 255, 0.08);
+      color: #e0e4ff;
+      border: none;
+      padding: 4px 9px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .anim-btn:hover {
+      background: #7c4dff;
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+    .anim-btn.active {
+      background: linear-gradient(135deg, #7c4dff, #00e5ff);
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(0, 229, 255, 0.4);
+    }
+  </style>
+  <script src="js/three.min.js"></script>
+  <script src="js/OrbitControls.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div id="anim-toolbar">
+    <button class="anim-btn active" onclick="setHumanAnimation('idle')">🧘 Idle</button>
+    <button class="anim-btn" onclick="setHumanAnimation('walk')">🚶 Walk</button>
+    <button class="anim-btn" onclick="setHumanAnimation('wave')">👋 Wave</button>
+    <button class="anim-btn" onclick="setHumanAnimation('dance')">🕺 Dance</button>
+    <button class="anim-btn" onclick="setHumanAnimation('sassy')">💅 Sassy</button>
+    <button class="anim-btn" onclick="setHumanAnimation('talk')">💬 Talk</button>
+    <button class="anim-btn" onclick="setHumanAnimation('jump')">🦘 Jump</button>
+    <button class="anim-btn" onclick="setHumanAnimation('hover')">✨ Hover</button>
+    <button class="anim-btn" onclick="setHumanAnimation('think')">🤔 Think</button>
+    <button class="anim-btn" onclick="setHumanAnimation('laugh')">🤣 Laugh</button>
+    <button class="anim-btn" onclick="setHumanAnimation('sleep')">💤 Sleep</button>
+  </div>
+
+  <script>
+    // --- 1. Scene, Camera, Renderer Setup ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0.55, 4.45);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.enableZoom = true;
+    controls.minDistance = 2.0;
+    controls.maxDistance = 5.5;
+    controls.maxPolarAngle = Math.PI / 2 + 0.1;
+    controls.target.set(0, 0.25, 0);
+
+    // --- 2. Studio Lighting (Warm Clay Pixar Look) ---
+    const ambientLight = new THREE.AmbientLight(0xfff1eb, 0.85);
+    scene.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(0xfffaed, 1.2);
+    keyLight.position.set(2.5, 4.0, 3.0);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = 1024;
+    keyLight.shadow.mapSize.height = 1024;
+    keyLight.shadow.camera.near = 0.5;
+    keyLight.shadow.camera.far = 10;
+    keyLight.shadow.bias = -0.001;
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0xd9ebff, 0.6);
+    fillLight.position.set(-2.5, 2.0, 2.0);
+    scene.add(fillLight);
+
+    const rimLight = new THREE.DirectionalLight(0xffd5bf, 0.9);
+    rimLight.position.set(0, 3.0, -3.0);
+    scene.add(rimLight);
+
+    // Soft Contact Ground Shadow
+    const shadowGeo = new THREE.PlaneGeometry(3.0, 3.0);
+    const shadowMat = new THREE.ShadowMaterial({ opacity: 0.18 });
+    const shadowPlane = new THREE.Mesh(shadowGeo, shadowMat);
+    shadowPlane.rotation.x = -Math.PI / 2;
+    shadowPlane.position.y = -0.58;
+    shadowPlane.receiveShadow = true;
+    scene.add(shadowPlane);
+
+    // --- 3. Materials (Authentic Indian Girl Clay Styling) ---
+    // Warm festive clay terracotta hood
+    const hoodMat = new THREE.MeshStandardMaterial({
+      color: 0xee6e5d,
+      roughness: 0.52,
+      metalness: 0.04
+    });
+
+    // Warm radiant skin tone
+    const faceMat = new THREE.MeshStandardMaterial({
+      color: 0xffe7d6,
+      roughness: 0.42,
+      metalness: 0.02
+    });
+
+    // Deep expressive hazel eyes
+    const pupilMat = new THREE.MeshStandardMaterial({
+      color: 0x24140e,
+      roughness: 0.15,
+      metalness: 0.05
+    });
+
+    // Eye specular sparkle
+    const sparkleMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+    // Eyebrows
+    const browMat = new THREE.MeshStandardMaterial({
+      color: 0x422416,
+      roughness: 0.6
+    });
+
+    // Blushing cheeks
+    const cheekMat = new THREE.MeshStandardMaterial({
+      color: 0xff8888,
+      roughness: 0.7,
+      transparent: true,
+      opacity: 0.75
+    });
+
+    // Shoes / Feet
+    const shoeMat = new THREE.MeshStandardMaterial({
+      color: 0xd95745,
+      roughness: 0.55
+    });
+
+    // Traditional Velvet Red Bindi Material
+    const bindiMat = new THREE.MeshStandardMaterial({
+      color: 0xb81424,
+      roughness: 0.35,
+      metalness: 0.08
+    });
+
+    // Radiant Indian Gold Jewelry Material (for Jhumkas and Bangles)
+    const goldMat = new THREE.MeshStandardMaterial({
+      color: 0xffcb3d,
+      roughness: 0.22,
+      metalness: 0.88
+    });
+
+    // Kohl / Kajal Eyeliner Material
+    const kajalMat = new THREE.MeshStandardMaterial({
+      color: 0x151214,
+      roughness: 0.20,
+      metalness: 0.10
+    });
+
+    // Glossy Raven-Black Hair Material (Authentic Indian Girl styling)
+    const hairMat = new THREE.MeshStandardMaterial({
+      color: 0x181313,
+      roughness: 0.32,
+      metalness: 0.12
+    });
+
+    // Soft Hair Shine Highlight Material
+    const hairHighlightMat = new THREE.MeshStandardMaterial({
+      color: 0x2e2320,
+      roughness: 0.36,
+      metalness: 0.08
+    });
+
+    // Festive Indian Crimson/Maroon Velvet Scrunchie Material
+    const scrunchieMat = new THREE.MeshStandardMaterial({
+      color: 0x8a1524,
+      roughness: 0.42,
+      metalness: 0.15
+    });
+
+    // --- 4. Rigged Character Hierarchy Construction ---
+    const characterRoot = new THREE.Group();
+    scene.add(characterRoot);
+
+    const hips = new THREE.Group();
+    hips.position.y = 0.2;
+    characterRoot.add(hips);
+
+    // Upper Body / Head Assembly (matching the video's squishy cube character)
+    const headPivot = new THREE.Group();
+    headPivot.position.set(0, 0.45, 0);
+    hips.add(headPivot);
+
+    // Main Hood Geometry (Smooth rounded box / capsule squishy shape)
+    const hoodGeo = new THREE.CylinderGeometry(0.72, 0.68, 0.88, 32, 16);
+    // Round out the top and bottom
+    const hood = new THREE.Mesh(hoodGeo, hoodMat);
+    hood.castShadow = true;
+    hood.receiveShadow = true;
+    hood.scale.set(1.0, 0.95, 0.92);
+    headPivot.add(hood);
+
+    // Top Dome to round out the squishy head
+    const domeGeo = new THREE.SphereGeometry(0.72, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+    const dome = new THREE.Mesh(domeGeo, hoodMat);
+    dome.position.y = 0.41;
+    dome.scale.set(1.0, 0.5, 0.92);
+    dome.castShadow = true;
+    headPivot.add(dome);
+
+    // Bottom round cap
+    const bottomDomeGeo = new THREE.SphereGeometry(0.68, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+    const bottomDome = new THREE.Mesh(bottomDomeGeo, hoodMat);
+    bottomDome.position.y = -0.41;
+    bottomDome.scale.set(1.0, 0.4, 0.92);
+    bottomDome.castShadow = true;
+    headPivot.add(bottomDome);
+
+    // Side ear / fin flaps (from the video!)
+    const earGeo = new THREE.ConeGeometry(0.18, 0.45, 24);
+    const leftEar = new THREE.Mesh(earGeo, hoodMat);
+    leftEar.position.set(-0.72, -0.22, 0);
+    leftEar.rotation.z = Math.PI / 8;
+    leftEar.scale.set(0.8, 1.0, 0.5);
+    headPivot.add(leftEar);
+
+    const rightEar = leftEar.clone();
+    rightEar.position.set(0.72, -0.22, 0);
+    rightEar.rotation.z = -Math.PI / 8;
+    headPivot.add(rightEar);
+
+    // Inset Face Plate (Creamy smooth rounded squircle from video)
+    const faceGeo = new THREE.SphereGeometry(0.58, 32, 24);
+    const face = new THREE.Mesh(faceGeo, faceMat);
+    face.position.set(0, 0.05, 0.22);
+    face.scale.set(1.0, 0.95, 0.85);
+    headPivot.add(face);
+
+    // Left & Right Eyes (Large hazel cartoon anime eyes)
+    function createEye(isLeft) {
+      const eyeGroup = new THREE.Group();
+      const xOffset = isLeft ? -0.25 : 0.25;
+      eyeGroup.position.set(xOffset, 0.12, 0.65);
+
+      // Eye White Sclera
+      const scleraGeo = new THREE.SphereGeometry(0.19, 24, 20);
+      const scleraMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.15 });
+      const sclera = new THREE.Mesh(scleraGeo, scleraMat);
+      sclera.scale.set(1.0, 1.15, 0.5);
+      eyeGroup.add(sclera);
+
+      // Hazel Pupil / Iris
+      const pupilGeo = new THREE.SphereGeometry(0.13, 24, 20);
+      const pupil = new THREE.Mesh(pupilGeo, pupilMat);
+      pupil.position.set(0, 0, 0.06);
+      pupil.scale.set(0.95, 1.1, 0.4);
+      eyeGroup.add(pupil);
+
+      // Specular Sparkle Highlight 1
+      const sp1 = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 16), sparkleMat);
+      sp1.position.set(0.04, 0.05, 0.11);
+      eyeGroup.add(sp1);
+
+      // Specular Sparkle Highlight 2
+      const sp2 = new THREE.Mesh(new THREE.SphereGeometry(0.022, 16, 16), sparkleMat);
+      sp2.position.set(-0.04, -0.04, 0.11);
+      eyeGroup.add(sp2);
+
+      // Blinking Eyelid (half sphere that rotates over eye)
+      const lidGeo = new THREE.SphereGeometry(0.20, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+      const eyelid = new THREE.Mesh(lidGeo, faceMat);
+      eyelid.position.set(0, 0, 0.01);
+      eyelid.rotation.x = -Math.PI / 2; // Initially tucked up open
+      eyelid.scale.set(1.05, 0.01, 0.6); // Flat when open
+      eyeGroup.add(eyelid);
+
+      // Winged Kajal Eyeliner (Indian Kohl eye styling)
+      const kajalCurve = new THREE.CubicBezierCurve3(
+        new THREE.Vector3(isLeft ? -0.17 : -0.12, 0.14, 0.08),
+        new THREE.Vector3(0, 0.19, 0.09),
+        new THREE.Vector3(isLeft ? 0.12 : 0.06, 0.18, 0.09),
+        new THREE.Vector3(isLeft ? 0.18 : 0.17, 0.16, 0.08)
+      );
+      const kajal = new THREE.Mesh(new THREE.TubeGeometry(kajalCurve, 12, 0.015, 8, false), kajalMat);
+      eyeGroup.add(kajal);
+
+      return { group: eyeGroup, eyelid: eyelid, pupil: pupil };
+    }
+
+    const leftEye = createEye(true);
+    const rightEye = createEye(false);
+    headPivot.add(leftEye.group);
+    headPivot.add(rightEye.group);
+
+    // Eyebrows (Curved warm caramel rounded cylinders)
+    function createBrow(isLeft) {
+      const browCurve = new THREE.CubicBezierCurve3(
+        new THREE.Vector3(-0.12, 0, 0),
+        new THREE.Vector3(-0.04, 0.05, 0.02),
+        new THREE.Vector3(0.04, 0.05, 0.02),
+        new THREE.Vector3(0.12, 0, 0)
+      );
+      const browGeo = new THREE.TubeGeometry(browCurve, 16, 0.035, 12, false);
+      const brow = new THREE.Mesh(browGeo, browMat);
+      brow.position.set(isLeft ? -0.25 : 0.25, 0.36, 0.63);
+      brow.rotation.z = isLeft ? 0.1 : -0.1;
+      return brow;
+    }
+    const leftBrow = createBrow(true);
+    const rightBrow = createBrow(false);
+    headPivot.add(leftBrow);
+    headPivot.add(rightBrow);
+
+    // Traditional Indian Bindi (Velvet red with tiny golden center)
+    const bindiGroup = new THREE.Group();
+    bindiGroup.position.set(0, 0.27, 0.66);
+    const bindiDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.012, 24), bindiMat);
+    bindiDisc.rotation.x = Math.PI / 2.2;
+    bindiGroup.add(bindiDisc);
+    const bindiGold = new THREE.Mesh(new THREE.SphereGeometry(0.012, 12, 12), goldMat);
+    bindiGold.position.set(0, 0, 0.012);
+    bindiGroup.add(bindiGold);
+    headPivot.add(bindiGroup);
+
+    // Traditional Indian Dangling Gold Jhumkas (Earrings on ear flaps)
+    function createJhumka(isLeft) {
+      const jhumkaGroup = new THREE.Group();
+      jhumkaGroup.position.set(isLeft ? -0.74 : 0.74, -0.42, 0);
+
+      // Gold connecting ring hook
+      const hook = new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.01, 12, 24), goldMat);
+      hook.rotation.y = Math.PI / 2;
+      jhumkaGroup.add(hook);
+
+      // Main bell dome
+      const bell = new THREE.Mesh(
+        new THREE.SphereGeometry(0.075, 20, 14, 0, Math.PI * 2, 0, Math.PI / 1.8),
+        goldMat
+      );
+      bell.position.y = -0.06;
+      bell.rotation.x = Math.PI;
+      bell.castShadow = true;
+      jhumkaGroup.add(bell);
+
+      // Dangling mini gold droplet beads
+      for (let i = 0; i < 5; i++) {
+        const angle = (i / 5) * Math.PI * 2;
+        const bead = new THREE.Mesh(new THREE.SphereGeometry(0.016, 10, 10), goldMat);
+        bead.position.set(Math.cos(angle) * 0.055, -0.11, Math.sin(angle) * 0.055);
+        jhumkaGroup.add(bead);
+      }
+      return jhumkaGroup;
+    }
+    const leftJhumka = createJhumka(true);
+    const rightJhumka = createJhumka(false);
+    headPivot.add(leftJhumka);
+    headPivot.add(rightJhumka);
+
+    // Cheeks (Pastel pink blushing spheres)
+    const cheekGeo = new THREE.SphereGeometry(0.10, 16, 12);
+    const leftCheek = new THREE.Mesh(cheekGeo, cheekMat);
+    leftCheek.position.set(-0.35, -0.09, 0.58);
+    leftCheek.scale.set(1.0, 0.55, 0.2);
+    headPivot.add(leftCheek);
+
+    const rightCheek = leftCheek.clone();
+    rightCheek.position.set(0.35, -0.09, 0.58);
+    headPivot.add(rightCheek);
+
+    // Mouth (Cute curved smile tube)
+    const mouthGroup = new THREE.Group();
+    mouthGroup.position.set(0, -0.15, 0.67);
+    headPivot.add(mouthGroup);
+
+    const mouthCurve = new THREE.CubicBezierCurve3(
+      new THREE.Vector3(-0.16, 0.04, 0),
+      new THREE.Vector3(-0.06, -0.06, 0),
+      new THREE.Vector3(0.06, -0.06, 0),
+      new THREE.Vector3(0.16, 0.04, 0)
+    );
+    const mouthGeo = new THREE.TubeGeometry(mouthCurve, 16, 0.024, 12, false);
+    const mouthMat = new THREE.MeshStandardMaterial({ color: 0x8a4529, roughness: 0.5 });
+    const mouthMesh = new THREE.Mesh(mouthGeo, mouthMat);
+    mouthGroup.add(mouthMesh);
+
+    // --- Traditional Indian Hairstyle & Long Ponytail Rig ---
+    const hairGroup = new THREE.Group();
+    headPivot.add(hairGroup);
+
+    // 1. Crown Hair Cap (Sleek volume covering crown and back of head)
+    const hairCapGeo = new THREE.SphereGeometry(0.74, 32, 24, 0, Math.PI * 2, 0, Math.PI * 0.58);
+    const hairCap = new THREE.Mesh(hairCapGeo, hairMat);
+    hairCap.position.set(0, 0.26, -0.06);
+    hairCap.scale.set(1.02, 0.76, 1.06);
+    hairCap.castShadow = true;
+    hairGroup.add(hairCap);
+
+    // 2. Neat Indian Center Parting (Maang line)
+    const partingGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.55, 12);
+    const partingMesh = new THREE.Mesh(partingGeo, faceMat);
+    partingMesh.rotation.x = Math.PI / 2.2;
+    partingMesh.position.set(0, 0.53, 0.25);
+    hairGroup.add(partingMesh);
+
+    // 3. Indian Face-Framing Front Flick Bangs (Temple Tendrils beside cheeks and jhumkas)
+    function createSideBangs(isLeft) {
+      const strandGroup = new THREE.Group();
+      const sign = isLeft ? -1 : 1;
+
+      // Soft curved flick bangs
+      const strandCurve = new THREE.CubicBezierCurve3(
+        new THREE.Vector3(sign * 0.14, 0.44, 0.58),
+        new THREE.Vector3(sign * 0.44, 0.28, 0.55),
+        new THREE.Vector3(sign * 0.56, -0.06, 0.48),
+        new THREE.Vector3(sign * 0.50, -0.34, 0.38)
+      );
+      const strandGeo = new THREE.TubeGeometry(strandCurve, 20, 0.030, 10, false);
+      const strand = new THREE.Mesh(strandGeo, hairMat);
+      strand.castShadow = true;
+      strandGroup.add(strand);
+
+      // Fine secondary accent tendril with highlight
+      const tendrilCurve = new THREE.CubicBezierCurve3(
+        new THREE.Vector3(sign * 0.22, 0.38, 0.60),
+        new THREE.Vector3(sign * 0.38, 0.16, 0.58),
+        new THREE.Vector3(sign * 0.42, -0.12, 0.52),
+        new THREE.Vector3(sign * 0.35, -0.28, 0.44)
+      );
+      const tendrilGeo = new THREE.TubeGeometry(tendrilCurve, 16, 0.018, 8, false);
+      const tendril = new THREE.Mesh(tendrilGeo, hairHighlightMat);
+      strandGroup.add(tendril);
+
+      return strandGroup;
+    }
+    const leftBangs = createSideBangs(true);
+    const rightBangs = createSideBangs(false);
+    hairGroup.add(leftBangs);
+    hairGroup.add(rightBangs);
+
+    // 4. High Back Ponytail Assembly with Indian Velvet Scrunchie & Gold Clasp
+    const ponytailBase = new THREE.Group();
+    // Placed at the high back of the head
+    ponytailBase.position.set(0, 0.36, -0.66);
+    hairGroup.add(ponytailBase);
+
+    // Festive Maroon Silk Scrunchie
+    const scrunchie = new THREE.Mesh(new THREE.TorusGeometry(0.125, 0.046, 16, 28), scrunchieMat);
+    scrunchie.rotation.x = Math.PI / 3.0;
+    scrunchie.castShadow = true;
+    ponytailBase.add(scrunchie);
+
+    // Traditional Gold Clasp Ring
+    const goldRing = new THREE.Mesh(new THREE.TorusGeometry(0.138, 0.016, 14, 28), goldMat);
+    goldRing.rotation.x = Math.PI / 3.0;
+    ponytailBase.add(goldRing);
+
+    // Multi-Segmented Long Ponytail Chain for Natural Fluid Physics
+    // Segment 1: Root / Upper Ponytail
+    const ptRoot = new THREE.Group();
+    ptRoot.position.set(0, 0.02, -0.04);
+    ptRoot.rotation.x = -0.32; // Arches backward naturally
+    ponytailBase.add(ptRoot);
+
+    const ptMesh1 = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.11, 0.125, 0.34, 18),
+      hairMat
+    );
+    ptMesh1.position.set(0, -0.16, 0);
+    ptMesh1.castShadow = true;
+    ptRoot.add(ptMesh1);
+
+    // Segment 2: Mid Ponytail
+    const ptMid = new THREE.Group();
+    ptMid.position.set(0, -0.32, 0);
+    ptRoot.add(ptMid);
+
+    const ptMesh2 = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.125, 0.11, 0.38, 18),
+      hairHighlightMat
+    );
+    ptMesh2.position.set(0, -0.18, 0.01);
+    ptMesh2.castShadow = true;
+    ptMid.add(ptMesh2);
+
+    // Decorative Gold Bead Ring on Mid Ponytail (Traditional Indian styling)
+    const midGoldRing = new THREE.Mesh(new THREE.TorusGeometry(0.118, 0.014, 12, 24), goldMat);
+    midGoldRing.rotation.x = Math.PI / 2;
+    midGoldRing.position.set(0, -0.18, 0.01);
+    ptMid.add(midGoldRing);
+
+    // Segment 3: Lower Ponytail
+    const ptLower = new THREE.Group();
+    ptLower.position.set(0, -0.36, 0);
+    ptMid.add(ptLower);
+
+    const ptMesh3 = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.11, 0.085, 0.40, 18),
+      hairMat
+    );
+    ptMesh3.position.set(0, -0.19, 0.02);
+    ptMesh3.castShadow = true;
+    ptLower.add(ptMesh3);
+
+    // Segment 4: Flowing Long Ponytail Tip (reaching past lower back)
+    const ptTip = new THREE.Group();
+    ptTip.position.set(0, -0.38, 0.02);
+    ptLower.add(ptTip);
+
+    const ptMesh4 = new THREE.Mesh(
+      new THREE.ConeGeometry(0.085, 0.44, 18),
+      hairMat
+    );
+    ptMesh4.rotation.x = Math.PI; // Tapering down smoothly to a fine tip
+    ptMesh4.position.set(0, -0.21, 0);
+    ptMesh4.castShadow = true;
+    ptTip.add(ptMesh4);
+
+    // --- 5. Small Hands & Arms (Chibi Humanoid Anatomy) ---
+    function createArm(isLeft) {
+      const shoulder = new THREE.Group();
+      shoulder.position.set(isLeft ? -0.72 : 0.72, 0.15, 0);
+
+      // Upper Arm
+      const armGeo = new THREE.CylinderGeometry(0.08, 0.07, 0.28, 16);
+      const upperArm = new THREE.Mesh(armGeo, hoodMat);
+      upperArm.position.y = -0.14;
+      upperArm.castShadow = true;
+      shoulder.add(upperArm);
+
+      // Elbow joint & Forearm
+      const elbow = new THREE.Group();
+      elbow.position.y = -0.26;
+      shoulder.add(elbow);
+
+      const foreGeo = new THREE.CylinderGeometry(0.07, 0.065, 0.24, 16);
+      const forearm = new THREE.Mesh(foreGeo, hoodMat);
+      forearm.position.y = -0.12;
+      forearm.castShadow = true;
+      elbow.add(forearm);
+
+      // Hand with cute chibi fingers/mitten
+      const hand = new THREE.Group();
+      hand.position.y = -0.24;
+      elbow.add(hand);
+
+      // Traditional Indian Golden Bangle (Kangan) on wrist
+      const bangle = new THREE.Mesh(new THREE.TorusGeometry(0.082, 0.012, 12, 24), goldMat);
+      bangle.rotation.x = Math.PI / 2;
+      bangle.position.y = 0.04;
+      hand.add(bangle);
+
+      const palmGeo = new THREE.SphereGeometry(0.085, 16, 14);
+      const palm = new THREE.Mesh(palmGeo, hoodMat);
+      palm.scale.set(1.0, 1.1, 0.7);
+      palm.castShadow = true;
+      hand.add(palm);
+
+      // Thumb
+      const thumbGeo = new THREE.SphereGeometry(0.045, 12, 12);
+      const thumb = new THREE.Mesh(thumbGeo, hoodMat);
+      thumb.position.set(isLeft ? 0.06 : -0.06, 0.02, 0.05);
+      hand.add(thumb);
+
+      // Default natural hang position
+      shoulder.rotation.z = isLeft ? 0.25 : -0.25;
+      shoulder.rotation.x = 0.05;
+
+      return { shoulder, elbow, hand };
+    }
+
+    const leftArm = createArm(true);
+    const rightArm = createArm(false);
+    headPivot.add(leftArm.shoulder);
+    headPivot.add(rightArm.shoulder);
+
+    // --- 6. Legs and Feet (Standing Chibi Anatomy) ---
+    function createLeg(isLeft) {
+      const hipJoint = new THREE.Group();
+      hipJoint.position.set(isLeft ? -0.28 : 0.28, -0.42, 0);
+      hips.add(hipJoint);
+
+      // Thigh
+      const thighGeo = new THREE.CylinderGeometry(0.12, 0.10, 0.28, 16);
+      const thigh = new THREE.Mesh(thighGeo, hoodMat);
+      thigh.position.y = -0.14;
+      thigh.castShadow = true;
+      hipJoint.add(thigh);
+
+      // Knee & Shin
+      const knee = new THREE.Group();
+      knee.position.y = -0.26;
+      hipJoint.add(knee);
+
+      const shinGeo = new THREE.CylinderGeometry(0.10, 0.09, 0.24, 16);
+      const shin = new THREE.Mesh(shinGeo, hoodMat);
+      shin.position.y = -0.12;
+      shin.castShadow = true;
+      knee.add(shin);
+
+      // Foot / Cute Shoe
+      const foot = new THREE.Group();
+      foot.position.set(0, -0.22, 0.04);
+      knee.add(foot);
+
+      const shoeGeo = new THREE.SphereGeometry(0.13, 20, 16);
+      const shoe = new THREE.Mesh(shoeGeo, shoeMat);
+      shoe.scale.set(0.95, 0.6, 1.45);
+      shoe.castShadow = true;
+      shoe.position.set(0, 0.02, 0.05);
+      foot.add(shoe);
+
+      return { hip: hipJoint, knee: knee, foot: foot };
+    }
+
+    const leftLeg = createLeg(true);
+    const rightLeg = createLeg(false);
+
+    // --- 7. Human Animations Engine ---
+    let currentAnim = 'idle';
+    let animTime = 0;
+    let isTalking = false;
+    let blinkTimer = 0;
+    let isBlinking = false;
+    let blinkProgress = 0;
+
+    // Whole-Screen & Viewport Mouse Tracking for Interactive Gaze
+    const mousePos = { x: 0, y: 0 };
+    const globalMouse = { x: 0, y: 0, active: false, lastUpdate: 0 };
+
+    window.addEventListener('mousemove', (e) => {
+      mousePos.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mousePos.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    });
+
+    // Called from Python PyQt6 to track mouse cursor across the WHOLE monitor screen
+    window.setGlobalMouse = (gx, gy) => {
+      globalMouse.x = gx;
+      globalMouse.y = gy;
+      globalMouse.active = true;
+      globalMouse.lastUpdate = Date.now();
+    };
+
+    // Raycasting for interactive click/petting across Hitasha's entire body
+    const raycaster = new THREE.Raycaster();
+    const mouseVector = new THREE.Vector2();
+    window.addEventListener('click', (e) => {
+      // Don't trigger if clicked on toolbar
+      if (e.target.closest('#anim-toolbar')) return;
+
+      mouseVector.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouseVector.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouseVector, camera);
+      // Raycast against the whole character hierarchy (head, face, dress, arms, hands, legs)
+      const intersects = raycaster.intersectObjects(characterRoot.children, true);
+      if (intersects.length > 0) {
+        // Trigger friendly reaction!
+        triggerPettingReaction();
+      }
+    });
+
+    function triggerPettingReaction() {
+      const reactions = ['wave', 'dance', 'jump', 'laugh', 'sassy'];
+      const chosen = reactions[Math.floor(Math.random() * reactions.length)];
+      setHumanAnimation(chosen);
+      setTimeout(() => {
+        if (currentAnim === chosen) setHumanAnimation('idle');
+      }, 3500);
+
+      // Notify Python Qt parent if embedded
+      if (window.qtBridge) {
+        window.qtBridge.onCharacterClicked();
+      }
+      console.log("hitasha:click");
+    }
+
+    function setHumanAnimation(name) {
+      if (!name) return;
+      if (typeof name === 'string' && name.startsWith('anim:')) {
+        name = name.split(':')[1];
+      }
+      currentAnim = name;
+      animTime = 0;
+      // Update UI buttons
+      document.querySelectorAll('.anim-btn').forEach(btn => {
+        if (btn.textContent.toLowerCase().includes(name)) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+    }
+
+    // Exposed for Python QWebEngineView integration
+    window.setAnimation = setHumanAnimation;
+    window.setTalking = (talking) => {
+      isTalking = talking;
+      if (currentAnim === 'sleep') return;
+      if (talking) {
+        if (currentAnim === 'idle' || currentAnim === 'wave' || currentAnim === 'think') {
+          setHumanAnimation('talk');
+        }
+      } else {
+        if (currentAnim === 'talk') {
+          setHumanAnimation('idle');
+        }
+      }
+    };
+    window.setMood = (mood) => {
+      if (mood === 'sassy') setHumanAnimation('sassy');
+      else if (mood === 'laughing') setHumanAnimation('laugh');
+      else if (mood === 'thinking') setHumanAnimation('think');
+      else if (mood === 'love' || mood === 'hyped') setHumanAnimation('dance');
+      else if (mood === 'happy') setHumanAnimation('wave');
+      else if (mood === 'sleepy') setHumanAnimation('sleep');
+    };
+
+    let targetFacingY = 0;
+    window.setFacing = (dir) => {
+      if (dir === 'left') targetFacingY = -Math.PI / 2.3;
+      else if (dir === 'right') targetFacingY = Math.PI / 2.3;
+      else targetFacingY = 0;
+    };
+
+    window.setRoamState = (state, facing) => {
+      if (state) setHumanAnimation(state);
+      if (facing) window.setFacing(facing);
+    };
+
+    // --- 8. Animation Update Loop (Smooth 60 FPS) ---
+    const clock = new THREE.Clock();
+    let currentGazeX = 0;
+    let currentGazeY = 0;
+
+    // Dynamic Ponytail Secondary Physics State
+    let tailVelX = 0, tailAngleX = -0.32;
+    let tailVelZ = 0, tailAngleZ = 0;
+    let lastHeadRotY = 0, lastHeadRotX = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      animTime += delta;
+
+      controls.update();
+
+      // Smoothly rotate character towards movement direction
+      characterRoot.rotation.y += (targetFacingY - characterRoot.rotation.y) * 0.15;
+
+      // Eye Blinking
+      blinkTimer += delta;
+      if (!isBlinking && blinkTimer > 2.5 + Math.random() * 2.0) {
+        isBlinking = true;
+        blinkTimer = 0;
+        blinkProgress = 0;
+      }
+      if (isBlinking) {
+        blinkProgress += delta * 12;
+        const scale = Math.sin(Math.min(blinkProgress, Math.PI));
+        leftEye.eyelid.scale.y = Math.max(0.01, scale * 1.05);
+        rightEye.eyelid.scale.y = Math.max(0.01, scale * 1.05);
+        if (blinkProgress >= Math.PI) {
+          isBlinking = false;
+          leftEye.eyelid.scale.y = 0.01;
+          rightEye.eyelid.scale.y = 0.01;
+        }
+      }
+
+      // Whole-Screen Gaze Calculation (Tracks mouse across entire display monitor)
+      let targetGazeX = mousePos.x;
+      let targetGazeY = mousePos.y;
+      if (globalMouse.active && (Date.now() - globalMouse.lastUpdate < 3500)) {
+        targetGazeX = globalMouse.x;
+        targetGazeY = globalMouse.y;
+      }
+
+      // Smooth gaze interpolation
+      currentGazeX += (targetGazeX - currentGazeX) * 0.14;
+      currentGazeY += (targetGazeY - currentGazeY) * 0.14;
+
+      // Pupil Gaze follows cursor smoothly across whole screen
+      const maxPupilX = 0.048;
+      const maxPupilY = 0.036;
+      const targetPupilX = Math.max(-maxPupilX, Math.min(maxPupilX, currentGazeX * maxPupilX));
+      const targetPupilY = Math.max(-maxPupilY, Math.min(maxPupilY, currentGazeY * maxPupilY));
+      leftEye.pupil.position.x += (targetPupilX - leftEye.pupil.position.x) * 0.16;
+      leftEye.pupil.position.y += (targetPupilY - leftEye.pupil.position.y) * 0.16;
+      rightEye.pupil.position.x += (targetPupilX - rightEye.pupil.position.x) * 0.16;
+      rightEye.pupil.position.y += (targetPupilY - rightEye.pupil.position.y) * 0.16;
+
+      // Natural human head rotation towards cursor on whole screen
+      const headTurnY = Math.max(-0.46, Math.min(0.46, currentGazeX * 0.40));
+      const headTurnX = Math.max(-0.26, Math.min(0.26, -currentGazeY * 0.24));
+      const headTiltZ = Math.max(-0.12, Math.min(0.12, -currentGazeX * 0.08));
+
+      // Reset base transforms
+      hips.position.y = 0.2;
+      hips.position.x = 0;
+      hips.rotation.set(0, 0, 0);
+      headPivot.rotation.set(0, 0, 0);
+
+      // --- Animation Behaviors ---
+      if (currentAnim === 'idle') {
+        // Human Idle / Staying: organic breathing, natural weight shifting, arm sway & full screen cursor tracking
+        const breath = Math.sin(animTime * 2.2);
+        const weightShift = Math.sin(animTime * 0.4); // 8-second realistic weight shift between legs
+        hips.position.y = 0.2 + breath * 0.015;
+        hips.position.x = weightShift * 0.025;
+        hips.rotation.z = weightShift * 0.035;
+
+        // Head smoothly turns towards cursor anywhere on monitor screen
+        headPivot.rotation.x = breath * 0.02 + headTurnX;
+        headPivot.rotation.y = Math.sin(animTime * 0.7) * 0.04 + headTurnY;
+        headPivot.rotation.z = weightShift * -0.02 + headTiltZ;
+
+        leftArm.shoulder.rotation.z = 0.25 + Math.sin(animTime * 1.5) * 0.04;
+        leftArm.shoulder.rotation.x = 0.04 + breath * 0.02;
+        rightArm.shoulder.rotation.z = -0.25 - Math.sin(animTime * 1.5) * 0.04;
+        rightArm.shoulder.rotation.x = 0.04 + breath * 0.02;
+
+        leftLeg.hip.rotation.set(0, 0, 0.04 + Math.max(0, weightShift * 0.05));
+        rightLeg.hip.rotation.set(0, 0, -0.04 + Math.min(0, weightShift * 0.05));
+
+      } else if (currentAnim === 'walk') {
+        // Human Walk Cycle: Alternating legs and arms with vertical body bounce and hip sway
+        const walkSpeed = 6.2;
+        const stride = Math.sin(animTime * walkSpeed);
+        const bounce = Math.abs(Math.sin(animTime * walkSpeed));
+        const sway = Math.cos(animTime * (walkSpeed * 0.5));
+
+        hips.position.y = 0.2 + bounce * 0.06;
+        hips.position.x = sway * 0.03;
+        hips.rotation.y = stride * 0.12;
+        hips.rotation.z = sway * 0.04;
+
+        // Legs swing opposite with realistic knee bending
+        leftLeg.hip.rotation.x = stride * 0.58;
+        leftLeg.knee.rotation.x = Math.max(0, -stride * 0.65);
+        rightLeg.hip.rotation.x = -stride * 0.58;
+        rightLeg.knee.rotation.x = Math.max(0, stride * 0.65);
+
+        // Arms swing in counter-balance
+        leftArm.shoulder.rotation.x = -stride * 0.55;
+        leftArm.elbow.rotation.x = -0.2 + Math.max(0, -stride * 0.4);
+        rightArm.shoulder.rotation.x = stride * 0.55;
+        rightArm.elbow.rotation.x = -0.2 + Math.max(0, stride * 0.4);
+
+        // Head turns towards movement direction and follows cursor
+        headPivot.rotation.x = headTurnX * 0.6;
+        headPivot.rotation.y = headTurnY * 0.6;
+
+      } else if (currentAnim === 'wave') {
+        // Human Friendly Wave: Right arm up waving, cheerful head tilt
+        headPivot.rotation.z = -0.12;
+        headPivot.rotation.y = 0.08;
+
+        // Right arm raised high
+        rightArm.shoulder.rotation.z = -2.3;
+        rightArm.shoulder.rotation.x = 0.2;
+        rightArm.elbow.rotation.z = -0.6 + Math.sin(animTime * 9.0) * 0.45;
+
+        // Left arm idle
+        leftArm.shoulder.rotation.z = 0.25;
+        leftArm.shoulder.rotation.x = 0.1;
+
+        leftLeg.hip.rotation.set(0, 0, 0.05);
+        rightLeg.hip.rotation.set(0, 0, -0.05);
+
+      } else if (currentAnim === 'dance') {
+        // High-energy dance: Hip swaying, arms pumping, bouncing rhythm
+        const beat = animTime * 7.0;
+        hips.position.y = 0.2 + Math.abs(Math.sin(beat)) * 0.08;
+        hips.rotation.z = Math.sin(beat * 0.5) * 0.15;
+        headPivot.rotation.z = -Math.sin(beat * 0.5) * 0.18;
+
+        leftArm.shoulder.rotation.z = 1.4 + Math.sin(beat) * 0.5;
+        leftArm.elbow.rotation.x = -0.8 + Math.cos(beat) * 0.4;
+        rightArm.shoulder.rotation.z = -1.4 - Math.sin(beat) * 0.5;
+        rightArm.elbow.rotation.x = -0.8 - Math.cos(beat) * 0.4;
+
+        leftLeg.hip.rotation.z = 0.08 + Math.sin(beat * 0.5) * 0.1;
+        rightLeg.hip.rotation.z = -0.08 + Math.sin(beat * 0.5) * 0.1;
+
+      } else if (currentAnim === 'sassy') {
+        // Sassy Pose: Hands on hips or crossed, head cocked, tapping foot
+        headPivot.rotation.z = 0.22;
+        headPivot.rotation.y = -0.15;
+
+        // Left brow cocked up!
+        leftBrow.position.y = 0.40;
+        rightBrow.position.y = 0.35;
+
+        // Hands on hips
+        leftArm.shoulder.rotation.z = 0.75;
+        leftArm.shoulder.rotation.x = -0.2;
+        leftArm.elbow.rotation.z = 1.4;
+
+        rightArm.shoulder.rotation.z = -0.75;
+        rightArm.shoulder.rotation.x = -0.2;
+        rightArm.elbow.rotation.z = -1.4;
+
+        // Weight on left leg, right foot tapping
+        hips.rotation.z = -0.08;
+        rightLeg.foot.rotation.x = Math.sin(animTime * 8.0) * 0.2;
+
+      } else if (currentAnim === 'talk') {
+        // Human Talking Gestures: Hand gesturing, head nodding, mouth movement
+        const talkCadence = animTime * 6.0;
+        headPivot.rotation.x = Math.sin(talkCadence * 0.6) * 0.08;
+        headPivot.rotation.y = Math.cos(talkCadence * 0.4) * 0.12;
+
+        // Mouth flapping
+        const mouthScale = 0.6 + Math.abs(Math.sin(talkCadence * 1.5)) * 1.1;
+        mouthGroup.scale.set(1.0, mouthScale, 1.0);
+
+        // Right hand explaining
+        rightArm.shoulder.rotation.z = -0.8 + Math.sin(talkCadence) * 0.25;
+        rightArm.shoulder.rotation.x = 0.5 + Math.cos(talkCadence * 0.7) * 0.3;
+        rightArm.elbow.rotation.z = -0.6;
+
+        leftArm.shoulder.rotation.z = 0.3;
+        leftArm.shoulder.rotation.x = 0.1;
+
+      } else if (currentAnim === 'jump') {
+        // Human Jump: Squash crouch, explosive upward leap, arms up, land
+        const cycle = (animTime * 3.0) % 2.0;
+        if (cycle < 0.4) {
+          // Crouch
+          hips.position.y = 0.08;
+          leftLeg.knee.rotation.x = 0.6;
+          rightLeg.knee.rotation.x = 0.6;
+          leftArm.shoulder.rotation.x = -0.4;
+          rightArm.shoulder.rotation.x = -0.4;
+        } else if (cycle < 1.2) {
+          // Apex of leap
+          const t = (cycle - 0.4) / 0.8;
+          const jumpHeight = Math.sin(t * Math.PI) * 0.45;
+          hips.position.y = 0.2 + jumpHeight;
+          leftLeg.hip.rotation.x = -0.2;
+          rightLeg.hip.rotation.x = -0.2;
+          leftArm.shoulder.rotation.z = 2.0;
+          rightArm.shoulder.rotation.z = -2.0;
+        } else {
+          // Landing absorption
+          hips.position.y = 0.14;
+          leftLeg.knee.rotation.x = 0.3;
+          rightLeg.knee.rotation.x = 0.3;
+          leftArm.shoulder.rotation.z = 0.4;
+          rightArm.shoulder.rotation.z = -0.4;
+        }
+
+      } else if (currentAnim === 'think') {
+        // Human Thinking: Right hand touching chin, head tilted up, gazing into distance
+        headPivot.rotation.x = -0.15;
+        headPivot.rotation.y = 0.25;
+        headPivot.rotation.z = 0.10;
+
+        // Right hand to chin
+        rightArm.shoulder.rotation.z = -0.4;
+        rightArm.shoulder.rotation.x = 0.9;
+        rightArm.elbow.rotation.x = -1.5;
+        rightArm.elbow.rotation.z = -0.5;
+
+        // Left arm tucked under
+        leftArm.shoulder.rotation.z = 0.5;
+        leftArm.shoulder.rotation.x = 0.4;
+        leftArm.elbow.rotation.z = 1.0;
+
+        leftLeg.hip.rotation.set(0, 0, 0.08);
+        rightLeg.hip.rotation.set(0, 0, -0.04);
+
+      } else if (currentAnim === 'laugh') {
+        // Human Laughing: Hands holding belly, rocking back and forth
+        const laughSpeed = animTime * 12.0;
+        const rock = Math.sin(laughSpeed) * 0.15;
+        headPivot.rotation.x = -0.1 + rock;
+        hips.position.y = 0.2 + Math.abs(Math.sin(laughSpeed)) * 0.04;
+
+        // Hands near belly
+        leftArm.shoulder.rotation.z = 0.4;
+        leftArm.shoulder.rotation.x = 0.5;
+        leftArm.elbow.rotation.z = 1.1;
+
+        rightArm.shoulder.rotation.z = -0.4;
+        rightArm.shoulder.rotation.x = 0.5;
+        rightArm.elbow.rotation.z = -1.1;
+
+        // Eyes squeezed shut in giggles
+        leftEye.eyelid.scale.y = 1.0;
+        rightEye.eyelid.scale.y = 1.0;
+
+      } else if (currentAnim === 'hover') {
+        // Human Hover / Levitation: floating smoothly with gentle limb sway and relaxed legs
+        const floatBeat = animTime * 3.2;
+        hips.position.y = 0.45 + Math.sin(floatBeat) * 0.14;
+        headPivot.rotation.x = -0.05 + Math.sin(floatBeat) * 0.04;
+        headPivot.rotation.z = Math.sin(animTime * 1.5) * 0.05;
+
+        // Floating arms spread outward gently
+        leftArm.shoulder.rotation.z = 0.85 + Math.sin(floatBeat) * 0.12;
+        leftArm.shoulder.rotation.x = -0.1 + Math.cos(floatBeat) * 0.06;
+        rightArm.shoulder.rotation.z = -0.85 - Math.sin(floatBeat) * 0.12;
+        rightArm.shoulder.rotation.x = -0.1 + Math.cos(floatBeat) * 0.06;
+
+        // Legs dangling softly with subtle flutter
+        leftLeg.hip.rotation.x = 0.2 + Math.sin(floatBeat * 0.8) * 0.12;
+        leftLeg.knee.rotation.x = 0.35 + Math.sin(floatBeat * 0.8) * 0.08;
+        rightLeg.hip.rotation.x = 0.25 - Math.sin(floatBeat * 0.8) * 0.12;
+        rightLeg.knee.rotation.x = 0.35 - Math.sin(floatBeat * 0.8) * 0.08;
+
+      } else if (currentAnim === 'sleep') {
+        // Peaceful Sleeping: Eyes closed, gentle rhythmic breathing, arms rested in lap
+        const sleepBreath = Math.sin(animTime * 1.5);
+        hips.position.y = 0.12 + sleepBreath * 0.012;
+        headPivot.rotation.x = 0.26 + sleepBreath * 0.03;
+        headPivot.rotation.z = 0.08;
+
+        // Eyes closed shut peacefully
+        leftEye.eyelid.scale.y = 1.05;
+        rightEye.eyelid.scale.y = 1.05;
+
+        // Arms curled softly in lap
+        leftArm.shoulder.rotation.z = 0.55;
+        leftArm.shoulder.rotation.x = 0.6;
+        leftArm.elbow.rotation.z = 1.1;
+
+        rightArm.shoulder.rotation.z = -0.55;
+        rightArm.shoulder.rotation.x = 0.6;
+        rightArm.elbow.rotation.z = -1.1;
+
+        // Legs resting comfortably
+        leftLeg.hip.rotation.x = 0.3;
+        leftLeg.knee.rotation.x = 0.55;
+        rightLeg.hip.rotation.x = 0.3;
+        rightLeg.knee.rotation.x = 0.55;
+
+      } else if (currentAnim === 'stretch') {
+        // Human Stretch: Arms reach high above head, chest arches back, relaxed release
+        const stretchCycle = (animTime * 1.6) % Math.PI;
+        const stretchAmount = Math.sin(stretchCycle);
+        hips.position.y = 0.2 + stretchAmount * 0.04;
+        headPivot.rotation.x = -0.22 * stretchAmount; // Looking upward
+
+        leftArm.shoulder.rotation.z = 2.3 * stretchAmount + 0.25;
+        leftArm.elbow.rotation.z = 0.4 * stretchAmount;
+        rightArm.shoulder.rotation.z = -2.3 * stretchAmount - 0.25;
+        rightArm.elbow.rotation.z = -0.4 * stretchAmount;
+
+        leftLeg.hip.rotation.set(0, 0, 0.05);
+        rightLeg.hip.rotation.set(0, 0, -0.05);
+
+      } else if (currentAnim === 'see' || currentAnim === 'look_around') {
+        // Curious inspection: Leaning forward, peering at the user's screen
+        const lookCycle = animTime * 2.2;
+        headPivot.rotation.y = Math.sin(lookCycle * 0.6) * 0.42 + headTurnY * 0.5;
+        headPivot.rotation.x = -0.12 + Math.cos(lookCycle * 0.4) * 0.08 + headTurnX * 0.5;
+        headPivot.rotation.z = Math.sin(lookCycle * 0.3) * 0.12;
+
+        hips.position.y = 0.22;
+        // Right hand shading brow or pointing towards screen
+        rightArm.shoulder.rotation.z = -0.65;
+        rightArm.shoulder.rotation.x = 0.75;
+        rightArm.elbow.rotation.x = -1.2;
+
+        leftArm.shoulder.rotation.z = 0.3;
+        leftArm.shoulder.rotation.x = 0.1;
+      }
+
+      // --- Dynamic Ponytail Secondary Motion & Physics ---
+      const headDeltaY = headPivot.rotation.y - lastHeadRotY;
+      const headDeltaX = headPivot.rotation.x - lastHeadRotX;
+      lastHeadRotY = headPivot.rotation.y;
+      lastHeadRotX = headPivot.rotation.x;
+
+      // Inertial lag and bounce forces
+      let targetTailZ = -headDeltaY * 3.2; // Inertia lags behind head turns
+      let targetTailX = -0.32 + headDeltaX * 1.6; // Rest angle arching backward
+
+      if (currentAnim === 'idle') {
+        const breath = Math.sin(animTime * 2.2);
+        const weightShift = Math.sin(animTime * 0.4);
+        targetTailZ += -weightShift * 0.10 + Math.sin(animTime * 1.8) * 0.05;
+        targetTailX += breath * 0.04;
+      } else if (currentAnim === 'walk') {
+        const walkSpeed = 6.2;
+        const stride = Math.sin(animTime * walkSpeed);
+        const bounce = Math.abs(Math.sin(animTime * walkSpeed));
+        targetTailZ += -stride * 0.32; // Natural counter-sway against steps
+        targetTailX += -bounce * 0.24; // Bounces upward and swings back
+      } else if (currentAnim === 'dance') {
+        const beat = animTime * 7.0;
+        targetTailZ += Math.sin(beat * 0.5) * 0.42;
+        targetTailX += Math.sin(beat) * 0.22;
+      } else if (currentAnim === 'jump') {
+        targetTailX += (hips.position.y - 0.2) * 0.9;
+      } else if (currentAnim === 'laugh') {
+        const laughSpeed = animTime * 12.0;
+        targetTailX += Math.sin(laughSpeed) * 0.16;
+      } else if (currentAnim === 'sassy') {
+        targetTailZ += 0.20;
+      }
+
+      // Spring-damper integration
+      const springK = 24.0;
+      const damping = 0.84;
+      tailVelZ = (tailVelZ + (targetTailZ - tailAngleZ) * springK * delta) * damping;
+      tailAngleZ += tailVelZ * delta;
+
+      tailVelX = (tailVelX + (targetTailX - tailAngleX) * springK * delta) * damping;
+      tailAngleX += tailVelX * delta;
+
+      // Propagate down the ponytail chain with realistic secondary phase lag
+      ptRoot.rotation.z = tailAngleZ * 0.55;
+      ptRoot.rotation.x = tailAngleX * 0.65;
+
+      ptMid.rotation.z = tailAngleZ * 0.85 + Math.sin(animTime * 2.8) * 0.02;
+      ptMid.rotation.x = tailAngleX * 0.82;
+
+      ptLower.rotation.z = tailAngleZ * 1.15;
+      ptLower.rotation.x = tailAngleX * 0.96;
+
+      ptTip.rotation.z = tailAngleZ * 1.45;
+      ptTip.rotation.x = tailAngleX * 1.12;
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    // Window Resize Handler
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
